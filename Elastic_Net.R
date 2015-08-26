@@ -11,6 +11,8 @@ require(useful)
 require(glmnet)
 require(parallel)
 require(doParallel)
+require(reshape2)
+require(stringr)
 
 acs <- read.table("http://jaredlander.com/data/acs_ny.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
 
@@ -103,7 +105,7 @@ abline(v = log(c(acsCV1$lambda.min, acsCV1$lambda.1se)), lty=2)
 
 # fit the ridge model
 set.seed(71623)
-acsV2 <- cv.glmnet(x = acsX, y = acsY, family = "binomial", nfold = 5, alpha = 0)
+acsCV2 <- cv.glmnet(x = acsX, y = acsY, family = "binomial", nfold = 5, alpha = 0)
 
 # look at the lambda values
 acsCV2$lambda.min
@@ -203,6 +205,7 @@ extractGlmnetInfo <- function(object)
 # apply that function to each element of the list
 # combine it all into a data.frame
 alphaInfo <- Reduce(rbind, lapply(acsDouble, extractGlmnetInfo))
+alphaInfo
 
 # could also be dine with ldply from plyr
 alphaInfo2 <- plyr::ldply(acsDouble, extractGlmnetInfo)
@@ -217,6 +220,18 @@ alphaInfo
 # using the one standard error methodology, the optimal alpha and lambda are
 # 0.75 and 0.0054284, respectively.
 
-
-
-
+## prepare the data.frame for plotting multiple pieces of information
+# met the data into long format
+require(stringr)
+alphaMelt <- melt(alphaInfo, id.vars = "Alpha", value.name = "Value", variable.name = "Measure")
+alphaMelt$Type <- str_extract(string = alphaMelt$Measure, pattern = " (min) | (1se) ")
+# some housekeeping
+alphaMelt$Measure <- str_replace(string = alphaMelt$Measure, pattern="\\.(min|1se)", replacement = "")
+alphaCast <- dcast(alphaMelt, Alpha + Type ~ Measure, value.var = "Value")
+?dcast
+qqplot(alphaCast, aes(x=Alpha, y=error)) +
+  geom_line(aes(group = Type)) +
+  facet_wrap(~Type, scales="free_y", ncol=1) +
+  geom_point(aes(size=lambda))
+?facet_wrap
+alphaCast
